@@ -48,5 +48,7 @@ octave-workspace
 # OS and IDE files
 .DS_Store
 Thumbs.db
+artigo_05_GPT/
+* - Copia/
 .vscode/
 .idea/
