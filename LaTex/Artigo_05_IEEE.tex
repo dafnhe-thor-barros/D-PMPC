@@ -78,7 +78,7 @@ Under the central-body gravitational potential with standard gravitational param
     v_{orb} = \sqrt{\frac{\mu_E}{a}} = \sqrt{\frac{\mu_E}{R_E + h}}
     \label{eq:orbital_velocity}
 \end{equation}
-For $h = 550.0\text{ km}$, Eq. (\ref{eq:orbital_period}) yields $\tau = 5,738.99\text{ s} \approx 95.65\text{ min}$ ($15.05\text{ orbits/day}$), and Eq. (\ref{eq:orbital_velocity}) gives the Keplerian speed $v_{orb} = 7.585\text{ km/s} = 27,306\text{ km/h}$. In the ECI frame, the exact inertial velocity incorporates secular nodal precession via $\mathbf{v}_i(t) = \mathbf{v}_{Kepler,i}(t) + \boldsymbol{\omega}_{prec} \times \mathbf{r}_i(t)$, where $\boldsymbol{\omega}_{prec} = [0, 0, \dot{\Omega}_p]^T$ ensures strict kinematic consistency $\dot{\mathbf{r}}_i = \mathbf{v}_i$.
+For $h = 550.0\text{ km}$, Eq. (\ref{eq:orbital_period}) yields $\tau = 5,738.99\text{ s} \approx 95.65\text{ min}$ ($15.05\text{ orbits/day}$), and Eq. (\ref{eq:orbital_velocity}) gives the Keplerian speed $v_{orb} = 7.585\text{ km/s} = 27,306\text{ km/h}$. In the ECI frame, the exact inertial velocity incorporates secular nodal precession via $\mathbf{v}_i(t) = \mathbf{v}_{Kepler,i}(t) + \boldsymbol{\omega}_{prec} \times \mathbf{r}_i(t)$, where $\boldsymbol{\omega}_{prec} = [0, 0, \dot{\Omega}_p]^T$ maintains kinematic consistency $\dot{\mathbf{r}}_i = \mathbf{v}_i$.
 
 The position vector of satellite $i \in \{1, \dots, N_{sat}\}$ in the Earth-Centered Inertial (ECI) coordinate frame is denoted by $\mathbf{r}_i(t) = [x_i(t), y_i(t), z_i(t)]^T$. Let $\hat{\mathbf{s}}(t)$ denote the normalized unit vector pointing toward the Sun. Under Earth's cylindrical shadow geometry, satellite $i$ is in eclipse if and only if both conditions hold simultaneously \cite{patel2005spacecraft, wertz2011space}:
 \begin{equation}
@@ -124,7 +124,7 @@ At $\beta = 0^\circ$ (equatorial worst-case alignment), Eq. (\ref{eq:eclipse_dur
 \begin{equation}
     t_{ecl}(0^\circ) = \frac{5,738.99}{\pi} \arccos(0.39047) = 2,137.6\text{ s} \approx 35.63\text{ min}
 \end{equation}
-yielding a sunlight duration $t_{sun} = \tau - t_{ecl} = 3,601.3\text{ s} \approx 60.02\text{ min}$. Across a Walker constellation with $P = 4$ planes spaced by $\Delta \Omega = 360^\circ / P = 90^\circ$, the phase difference in orbital mean anomaly ensures that at any instantaneous time $t$, approximately $62.5\%$ to $68.8\%$ of the constellation nodes are in sunlight, establishing the physical foundation for cross-orbital energy offloading.
+yielding a sunlight duration $t_{sun} = \tau - t_{ecl} = 3,601.3\text{ s} \approx 60.02\text{ min}$. Across a Walker constellation with $P = 4$ planes spaced by $\Delta \Omega = 360^\circ / P = 90^\circ$, orbital geometry results in approximately $62.5\%$ to $68.8\%$ of the constellation nodes being in sunlight at any given instantaneous time $t$, establishing the physical foundation for cross-orbital energy offloading.
 
 \begin{figure}[!t]
 \centering
@@ -166,7 +166,7 @@ where $\eta_b(P_{b,i})$ is the coulombic charging/discharging efficiency:
         \eta_{chg}, & \text{if } P_{b,i}(t) < 0 \quad (\eta_{chg} = 0.94)
     \end{cases}
 \end{equation}
-During an uncoordinated eclipse ($P_{comp} = 100.0\text{ kW}$, $P_{bus} = 5.0\text{ kW}$, $P_{oisl} = 0\text{ kW}$), total platform load is $P_{load,uncoord} = 105.0\text{ kW}$, requiring an energy delivery of $105.0 \times (35.63/60) = 62.35\text{ kWh}$. Dividing by discharge efficiency $\eta_{dis} = 0.96$, the energy extracted from battery cells is $E_{ext} = 64.95\text{ kWh}$, resulting in an exact cyclic Depth-of-Discharge $DoD = 64.95 / 125.0 = 51.96\% \approx 52.0\%$. Under cooperative D-PMPC, computing is throttled to $P_{comp,min} = 31.0\text{ kW}$ (sustaining telemetry, attitude control coprocessing, and high-priority Earth observation inference), while the platform bus draws $P_{bus} = 5.0\text{ kW}$ and active optical crosslinks draw $P_{oisl} = 0.35\text{ kW}$ ($353.6\text{ W}$ for 4 active links). Total platform load during eclipse is strictly $P_{load,dpmpc} = 31.0 + 5.0 + 0.35 = 36.35\text{ kW}$. Energy extracted from battery cells is $E_{ext} = (36.35 \times 0.5938) / 0.96 = 22.48\text{ kWh}$, yielding an exact cyclic Depth-of-Discharge $DoD = 22.48 / 125.0 = 17.99\% \approx 18.0\%$, achieving a $65.38\% \approx 65.4\%$ reduction in cyclic discharge stress.
+During an uncoordinated eclipse ($P_{comp} = 100.0\text{ kW}$, $P_{bus} = 5.0\text{ kW}$, $P_{oisl} = 0\text{ kW}$), total platform load is $P_{load,uncoord} = 105.0\text{ kW}$, requiring an energy delivery of $105.0 \times (35.63/60) = 62.35\text{ kWh}$. Dividing by discharge efficiency $\eta_{dis} = 0.96$, the energy extracted from battery cells is $E_{ext} = 64.95\text{ kWh}$, resulting in an exact cyclic Depth-of-Discharge $DoD = 64.95 / 125.0 = 51.96\% \approx 52.0\%$. Under cooperative D-PMPC, computing is throttled to $P_{comp,min} = 31.0\text{ kW}$ (sustaining telemetry, attitude control coprocessing, and high-priority Earth observation inference), while the platform bus draws $P_{bus} = 5.0\text{ kW}$ and active optical crosslinks draw $P_{oisl} = 0.35\text{ kW}$ ($353.6\text{ W}$ for 4 active links). Total platform load during eclipse is $P_{load,dpmpc} = 31.0 + 5.0 + 0.35 = 36.35\text{ kW}$. Energy extracted from battery cells is $E_{ext} = (36.35 \times 0.5938) / 0.96 = 22.48\text{ kWh}$, yielding an exact cyclic Depth-of-Discharge $DoD = 22.48 / 125.0 = 17.99\% \approx 18.0\%$, achieving a $65.38\% \approx 65.4\%$ reduction in cyclic discharge stress.
 
 \subsection{Battery Arrhenius Degradation and Calendar Aging Mechanics}
 Electrochemical cell capacity loss during multi-year orbital operations is driven by the superposition of cycle-induced mechanical fatigue (lithium intercalation/deintercalation micro-cracking) and time-dependent calendar aging (solid electrolyte interphase film growth) \cite{wang2011cycle, xu2018modeling, li2024battery}:
@@ -224,7 +224,7 @@ Substituting (\ref{eq:thermal_linearization}) into (\ref{eq:thermal_radiator}) y
     \dot{\mathbf{x}}_{th,i}(t) = \mathbf{A}_{th} \mathbf{x}_{th,i}(t) + \mathbf{B}_{th} P_{comp,i}(t) + \mathbf{E}_{th} \dot{Q}_{env,i}(t) + \mathbf{d}_{th}
     \label{eq:affine_thermal}
 \end{equation}
-where $\mathbf{x}_{th,i} = [T_{j,i}, T_{rad,i}]^T$. Discretizing (\ref{eq:affine_thermal}) with sampling period $\Delta t = 10.0\text{ s}$ preserves prediction accuracy within $0.42^\circ\text{C}$ of the full 4th-power ODE while ensuring that temperature trajectories remain strictly affine functions of compute power $P_{comp,i}$.
+where $\mathbf{x}_{th,i} = [T_{j,i}, T_{rad,i}]^T$. Discretizing (\ref{eq:affine_thermal}) with sampling period $\Delta t = 10.0\text{ s}$ preserves prediction accuracy within $0.42^\circ\text{C}$ of the full 4th-power ODE while keeping temperature trajectories affine in compute power $P_{comp,i}$.
 
 During peak solar computation ($P_{comp} = 140.0\text{ kW}$, $\dot{Q}_{env} = 12.0\text{ kW}$), the radiator equilibrium temperature is:
 \begin{equation}
@@ -301,7 +301,7 @@ where $P_{comp,min} = 31.0\text{ kW}$ represents critical real-time compute load
 \subsection{Distributed Consensus via ADMM Decomposition}
 Solving Eq. (\ref{eq:cost_function}) centrally requires downlinking global telemetry to a single master spacecraft, introducing single-point failure risks and communication bottlenecks \cite{scattolini2009architectures, christofides2013distributed, nedic2009distributed, olfatisaber2007consensus}. We decompose Eq. (\ref{eq:cost_function}) into a distributed multi-agent consensus problem over the directed orbital graph $\mathcal{G} = (\mathcal{V}, \mathcal{E})$ solved iteratively by local spacecraft through the Alternating Direction Method of Multipliers (ADMM) \cite{boyd2011distributed, giselsson2014improved}.
 
-For each directed link $(i,j) \in \mathcal{E}$, let $x_{ij}^{(i)}(k)$ denote the migration volume transmitted by satellite $i$, and let $x_{ij}^{(j)}(k)$ denote the volume accepted by receiving peer $j$. At receiving node $j$, the accepted workload enters its local queue dynamics (\ref{eq:queue_dynamics}) subject to local buffer capacity $W_j \le W_{max}$ and processing limit $P_{comp,j} \le P_{comp,max}$, ensuring peer nodes only accept tasks they have the electrical, thermal, and memory capacity to process. Consensus on the physical transfer is enforced via the auxiliary link flow $z_{ij}(k)$:
+For each directed link $(i,j) \in \mathcal{E}$, let $x_{ij}^{(i)}(k)$ denote the migration volume transmitted by satellite $i$, and let $x_{ij}^{(j)}(k)$ denote the volume accepted by receiving peer $j$. At receiving node $j$, the accepted workload enters its local queue dynamics (\ref{eq:queue_dynamics}) subject to local buffer capacity $W_j \le W_{max}$ and processing limit $P_{comp,j} \le P_{comp,max}$, so that peer nodes only accept tasks within their electrical, thermal, and memory processing capacities. Consensus on the physical transfer is enforced via the auxiliary link flow $z_{ij}(k)$:
 \begin{equation}
     x_{ij}^{(i)}(k) - z_{ij}(k) = 0, \quad x_{ij}^{(j)}(k) - z_{ij}(k) = 0
 \end{equation}
@@ -335,15 +335,15 @@ At iteration $m+1$, each satellite executes three distributed steps in parallel:
     \end{equation}
 \end{enumerate}
 
-\subsection{Convergence Guarantees and Latency Decoupling}
-Because each local objective $\phi_i$ is strictly convex and all local constraint sets $\mathcal{U}_i$ are compact polyhedra, the ADMM iteration sequence is mathematically guaranteed to converge monotonically to the global Pareto optimum of the centralized problem \cite{boyd2011distributed, giselsson2014improved}. Distributed convergence is governed by the infinity norms of the primal and dual residuals:
+\subsection{Convergence Characteristics and Latency Decoupling}
+Because each local objective $\phi_i$ is strictly convex and all local constraint sets $\mathcal{U}_i$ are compact polyhedra, the ADMM iteration sequence converges asymptotically to the Pareto optimum of the centralized problem in accordance with convex consensus theory \cite{boyd2011distributed, giselsson2014improved}. Distributed convergence is governed by the infinity norms of the primal and dual residuals:
 \begin{equation}
     r_{prim}^{m+1} = \max_{(i,j) \in \mathcal{E}} \left|x_{ij}^{(i),m+1} - z_{ij}^{m+1}\right| \le \epsilon_{pri}
 \end{equation}
 \begin{equation}
     r_{dual}^{m+1} = \rho \max_{(i,j) \in \mathcal{E}} \left|z_{ij}^{m+1} - z_{ij}^m\right| \le \epsilon_{dual}
 \end{equation}
-With stopping tolerances $\epsilon_{pri} = \epsilon_{dual} = 10^{-4}$, numerical simulations confirm convergence in $m \le 8$ iterations (mean $m = 6.4$). Total control plane execution requires $1.8\text{ ms}$ on an onboard processor (ARM Cortex-R8) and $9.6\text{ ms}$ of crosslink signaling, establishing an algorithmic decision latency of $11.4\text{ ms} \ll \Delta t = 10.0\text{ s}$. Under optical jitter or packet loss, asynchronous ADMM with a $3.0\text{ ms}$ watchdog deadline preserves consensus and activates local fallback throttling. Crucially, this control plane decision latency is entirely decoupled from the task data plane execution latency ($215.0\text{ ms}$), as the D-PMPC schedule is computed once per $10.0\text{ s}$ sampling period while tensor workloads flow continuously over the established crosslink paths.
+With stopping tolerances $\epsilon_{pri} = \epsilon_{dual} = 10^{-4}$, numerical simulations confirm convergence in $m \le 8$ iterations (mean $m = 6.4$). Total control plane execution requires $1.8\text{ ms}$ on an onboard processor (ARM Cortex-R8) and $9.6\text{ ms}$ of crosslink signaling, establishing an algorithmic decision latency of $11.4\text{ ms} \ll \Delta t = 10.0\text{ s}$. Under optical jitter or packet loss, asynchronous ADMM with a $3.0\text{ ms}$ watchdog deadline preserves consensus and activates local fallback throttling. Crucially, this control plane decision latency is decoupled from the task data plane execution latency ($215.0\text{ ms}$), as the D-PMPC schedule is computed once per $10.0\text{ s}$ sampling period while tensor workloads flow continuously over the established crosslink paths.
 
 \section{Simulation Setup and Numerical Results}
 
