@@ -1,3 +1,4 @@
+function results = validate_dpmpc()
 % VALIDATE_DPMPC - Suite de Testes e Validação Científica da Etapa F (5 Órbitas Multi-Regime)
 % Validação do Controlador Preditivo Distribuído (D-PMPC) e Otimizador ADMM.
 %
@@ -15,9 +16,6 @@
 %   - Margem térmica de segurança do silício (T_j <= 85.0 °C) em todos os regimes
 %   - Estabilidade de filas de tarefas neurais (W <= 1.05 PFLOPs) e latência <= 250 ms
 %   - Eficiência de colheita solar e vazão óptica OISL
-
-clear; clc;
-addpath('config', 'models', 'controllers');
 
 fprintf('========================================================================================\n');
 fprintf('   SUITE DE VALIDAÇÃO CIENTÍFICA - ETAPA F: D-PMPC / ADMM (5 ÓRBITAS CONSECUTIVAS)    \n');
@@ -323,4 +321,12 @@ if n_pass == length(tests)
     fprintf('STATUS: ETAPA F REFEITA COM SUCESSO ABSOLUTO EM 5 ÓRBITAS E 3 REGIMES.\n');
 else
     fprintf('STATUS: REVISÃO NECESSÁRIA EM TESTES REPROVADOS.\n');
+end
+
+results = struct();
+results.n_pass = n_pass;
+results.n_tot  = length(tests);
+results.tests  = tests;
+results.pass   = (n_pass == length(tests));
+
 end

@@ -69,16 +69,30 @@ tests{end+1} = run_test('ORB-05', 'Invariância do raio orbital ||r_i(t)|| = a',
     max(r_norms(:)), p.orbit.a, max_err_r, 1e-5, 'm', max_err_r <= 1e-5, ...
     'Todas as 32 posições devem manter raio constante a = 6,928,137 m em qualquer instante.');
 
-%% TESTE 06: Conservação da velocidade orbital (||v_i(t)|| = v_orb)
-v_norms = zeros(N_t, p.orbit.N_sat);
+%% TESTE 06: Conservação cinemática e validação da derivada temporal dr/dt (NUM-01)
+% A velocidade ECI completa é v_eci = v_Kepler + omega_prec x r_eci.
+% No referencial orbital Kepleriano co-móvel, a velocidade tem módulo estritamente v_orb:
+% E a derivada numérica por diferenças finitas centrais valida a consistência de v_eci:
+v_kep_norms = zeros(N_t, p.orbit.N_sat);
 for s = 1:p.orbit.N_sat
+    r_s = squeeze(orbit_data.r_eci(:, :, s));
     v_s = squeeze(orbit_data.v_eci(:, :, s));
-    v_norms(:, s) = sqrt(sum(v_s.^2, 1));
+    omega_cross_r = [-orbit_data.RAAN_dot * r_s(2, :); orbit_data.RAAN_dot * r_s(1, :); zeros(1, N_t)];
+    v_kep = v_s - omega_cross_r;
+    v_kep_norms(:, s) = sqrt(sum(v_kep.^2, 1));
 end
-max_err_v = max(abs(v_norms(:) - p.orbit.v_orb));
-tests{end+1} = run_test('ORB-06', 'Invariância da velocidade ||v_i(t)|| = v_orb', ...
-    max(v_norms(:)), p.orbit.v_orb, max_err_v, 1e-5, 'm/s', max_err_v <= 1e-5, ...
-    'Todas as 32 trajetórias devem manter velocidade linear constante.');
+max_err_v_kep = max(abs(v_kep_norms(:) - p.orbit.v_orb));
+
+% Validação adicional por diferenças finitas centrais na malha uniforme (h = 1.0 s):
+% Erro de truncamento teórico O(h^2) ~ 1.5e-3 m/s
+r_unif = squeeze(orbit_data.r_eci(:, 1:end-1, 1));
+v_unif = squeeze(orbit_data.v_eci(:, 2:end-2, 1));
+v_fd   = (r_unif(:, 3:end) - r_unif(:, 1:end-2)) / 2.0;
+err_fd = max(max(abs(v_unif - v_fd)));
+
+tests{end+1} = run_test('ORB-06', 'Consistência cinemática dr/dt e ||v_Kepler|| = v_orb', ...
+    max(v_kep_norms(:)), p.orbit.v_orb, max_err_v_kep, 1e-5, 'm/s', (max_err_v_kep <= 1e-5) && (err_fd <= 5e-3), ...
+    'Derivada temporal analítica v_eci coincide com dr/dt e preserva módulo Kepleriano.');
 
 %% TESTE 07: Ortogonalidade r_i(t) . v_i(t) = 0 (órbita circular)
 dot_rv = zeros(N_t, p.orbit.N_sat);

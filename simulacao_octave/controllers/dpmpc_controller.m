@@ -179,15 +179,20 @@ for m = 1:max_iter
     cum_W  = T_cum' * W_norm; % [H x N_sat]
     cum_W_3d = repmat(reshape(cum_W, [H, 1, N_sat]), [1, 4, 1]);
     
-    % A. Alocação de Potência Computacional Local u_P:
-    % No sol: u_P = 1.0 (P_comp = P_max) para máxima absorção solar
-    % No eclipse: u_P = 0.0 (P_comp = P_min = 31 kW) a menos que a fila atinja limite crítico
-    % A. Alocação de Potência Computacional Local u_P:
-    % No sol: u_P = 1.0 (P_comp = P_max) para máxima absorção solar
-    % No eclipse: u_P = 0.0 (P_comp = P_min = 31 kW) para máxima preservação eletroquímica
-    u_P = zeros(H, N_sat);
-    u_P(xi_pred == 1) = 1.0;
-    u_P(xi_pred == 0) = 0.0;
+    % A. Otimização Primal Convexa da Potência Computacional Local u_P (KKT / Projeção de Gradiente):
+    % Minimiza J = w_B * (P_b / P_nom)^2 + w_Q * (W / W_ref)^2 sujeito a u_P in [0, 1].
+    % Em sol (xi = 1): P_b = 0, custo de bateria nulo; o gradiente negativo dJ_Q/du_P projeta u_P = 1.0 (P_max).
+    % Em eclipse (xi = 0): balanço ótimo analítico entre estresse de descarga (w_B) e acúmulo de fila (w_Q).
+    % Solução primal fechada 100% vetorizada para u_P em [H x N_sat]:
+    marginal_comm_benefit  = w_comm * (delta_P / P_nom) * (r_mig_total_bps / C_laser) * 20.0;
+    marginal_queue_benefit = w_Q * c_comp * cum_W;
+    marginal_battery_cost0 = w_B * (delta_P * (P_min + P_bus)) / (P_nom^2);
+    quad_curvature         = max(1e-6, w_B * (delta_P^2) / (P_nom^2) + w_comm * (delta_P / P_nom)^2);
+    
+    u_opt = (marginal_comm_benefit + marginal_queue_benefit - marginal_battery_cost0) / quad_curvature;
+    u_P_ecl = max(0.0, min(1.0, u_opt));
+    
+    u_P = (xi_pred == 1) * 1.0 + (xi_pred == 0) .* u_P_ecl;
     
     % B. Alocação de Transmissão Óptica u_out:
     % Rastreamento estritamente quadrático do fluxo físico necessário via OISL

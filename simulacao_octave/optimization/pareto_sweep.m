@@ -93,6 +93,11 @@ P_comp_min_base = p_eval.eps.P_comp_min; % 31.0 kW
 P_comp_nom_base = p_eval.eps.P_comp_nom; % 100.0 kW
 P_comp_sun_max  = p_eval.eps.P_comp_sun; % 110.0 kW (cons) ou 140.0 kW (nom)
 
+% Propagação geométrica de referência para demarcação de sol/sombra
+orbit_data_sweep   = orbit_model(p_eval, t_vec);
+eclipse_data_sweep = eclipse_model(p_eval, orbit_data_sweep, options.regime);
+xi_sweep           = eclipse_data_sweep.xi;
+
 % --- LAÇO DE VARREDURA PARAMÉTRICA ---
 tic_sweep = tic;
 for i = 1:N_pts
@@ -108,28 +113,22 @@ for i = 1:N_pts
     sweep_w_Q(i)    = wQ;
     sweep_w_comm(i) = wc;
     
-    % Modulação física da potência computacional decorrente dos pesos multiobjetivo
-    % Em eclipse: quando wB -> 0.95, P_ecl -> P_min (31 kW). Quando wB -> 0.05, P_ecl -> P_nom (100 kW).
-    frac_ecl = ((1.0 - wB) / 0.90)^2;
-    P_comp_ecl_pt = P_comp_min_base + frac_ecl * (P_comp_nom_base - P_comp_min_base);
-    
-    % Em sol: aproveitamento do excedente fotovoltaico
-    P_comp_sun_pt = P_comp_nom_base + (P_comp_sun_max - P_comp_nom_base) * min(1.0, wB / 0.85);
-    
-    sweep_P_ecl_kW(i) = P_comp_ecl_pt / 1e3;
-    sweep_P_sun_kW(i) = P_comp_sun_pt / 1e3;
-    
+    % Configuração dos pesos multiobjetivo no controlador D-PMPC (EQ-24)
     p_i = p_eval;
     p_i.mpc.w_B    = wB;
     p_i.mpc.w_T    = wT;
     p_i.mpc.w_Q    = wQ;
     p_i.mpc.w_comm = wc;
     p_i.mpc.w_f_B  = 2.50 * (wB / 0.85);
-    p_i.eps.P_comp_min = P_comp_ecl_pt;
-    p_i.eps.P_comp_sun = P_comp_sun_pt;
+    p_i.eps.P_comp_min = P_comp_min_base;
+    p_i.eps.P_comp_sun = P_comp_sun_max;
     
     % Execução da simulação física em malha fechada
     res_i = simulate_constellation(p_i, t_vec, 'dpmpc', options.regime);
+    
+    % As potências em sol e eclipse emergem diretamente da otimização do D-PMPC (NUM-03)
+    sweep_P_ecl_kW(i) = mean(res_i.P_comp(xi_sweep == 0)) / 1e3;
+    sweep_P_sun_kW(i) = mean(res_i.P_comp(xi_sweep == 1)) / 1e3;
     
     sweep_DoD_pct(i)   = res_i.DoD_max * 100.0;
     sweep_SoC_min(i)   = res_i.SoC_min;

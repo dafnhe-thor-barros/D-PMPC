@@ -99,14 +99,19 @@ for idx = 1:p.orbit.N_sat
     r_eci(2, :, idx) = a * (sin_Om .* cos_u + cos_Om .* sin_u * cos_i);
     r_eci(3, :, idx) = a * (sin_u * sin_i);
     
-    % Velocidades ECI (derivada temporal):
-    % dX/dt = a*n * (-cos(Om)*sin(u) - sin(Om)*cos(u)*cos(i))
-    % dY/dt = a*n * (-sin(Om)*sin(u) + cos(Om)*cos(u)*cos(i))
-    % dZ/dt = a*n * (cos(u)*sin(i))
-    % (Nota: a taxa RAAN_dot é 10^7 vezes menor que n, sendo termo de segunda ordem desprezível na velocidade)
-    v_eci(1, :, idx) = (a * n) * (-cos_Om .* sin_u - sin_Om .* cos_u * cos_i);
-    v_eci(2, :, idx) = (a * n) * (-sin_Om .* sin_u + cos_Om .* cos_u * cos_i);
-    v_eci(3, :, idx) = (a * n) * (cos_u * sin_i);
+    % Velocidades ECI (derivada temporal analítica exata):
+    % v_eci = v_Kepler + omega_prec x r_eci
+    % onde omega_prec = [0; 0; RAAN_dot]
+    v_kep_x = (a * n) * (-cos_Om .* sin_u - sin_Om .* cos_u * cos_i);
+    v_kep_y = (a * n) * (-sin_Om .* sin_u + cos_Om .* cos_u * cos_i);
+    v_kep_z = (a * n) * (cos_u * sin_i);
+    
+    r_x = r_eci(1, :, idx);
+    r_y = r_eci(2, :, idx);
+    
+    v_eci(1, :, idx) = v_kep_x - RAAN_dot * r_y;
+    v_eci(2, :, idx) = v_kep_y + RAAN_dot * r_x;
+    v_eci(3, :, idx) = v_kep_z;
 end
 
 % 4. Montagem da estrutura de saída

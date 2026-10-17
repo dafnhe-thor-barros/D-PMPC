@@ -98,8 +98,10 @@ T_j(1, :)   = T_j_init;
 T_rad(1, :) = T_rad_init;
 A_rad(1, :) = A_target(1, :);
 
-% Sub-passos de integração RK4 vetorizada para garantir estabilidade da dinâmica rápida
-sub_steps = 4; % Com dt = 2.0 s, h_sub = 0.5 s (estável e exato para RK4 de 4a ordem)
+% Sub-passos de integração RK4 vetorizada:
+% Para dt = 2.0 s, sub_steps = 4 (h_sub = 0.5 s, exato para calibração analítica).
+% Para passos maiores (ex: dt = 10.0 s), sub_steps escala para manter h_sub <= 0.5 s.
+sub_steps = max(4, ceil(dt / 0.5));
 h_sub = dt / sub_steps;
 alpha_valve = 1.0 - exp(-h_sub / tau_valve);
 

@@ -12,7 +12,22 @@
 % Total: 88 testes formais com rastreabilidade física rigorosa.
 
 clear; clc;
-addpath('config', 'models', 'controllers', 'optimization', 'validation');
+
+% Resolução robusta de caminhos absolutos independente do diretório de chamada (6.1)
+this_dir = fileparts(mfilename('fullpath'));
+if isempty(this_dir)
+    this_dir = pwd;
+end
+base_dir = fileparts(this_dir);
+if ~exist(fullfile(base_dir, 'config'), 'dir')
+    base_dir = fullfile(this_dir, '..');
+end
+
+addpath(fullfile(base_dir, 'config'));
+addpath(fullfile(base_dir, 'models'));
+addpath(fullfile(base_dir, 'controllers'));
+addpath(fullfile(base_dir, 'optimization'));
+addpath(fullfile(base_dir, 'validation'));
 
 fprintf('========================================================================================\n');
 fprintf('   SUITE MESTRA DE VALIDAÇÃO CIENTÍFICA E CERTIFICAÇÃO INTEGRADA (GNU OCTAVE)          \n');
@@ -42,30 +57,26 @@ for s = 1:n_suites
     
     t_start_s = tic;
     
-    % Execução isolada em subprocesso para garantir integridade de escopo
-    cmd = sprintf('"%s" --no-gui -q --eval "addpath(''config'', ''models'', ''controllers'', ''optimization'', ''validation''); %s;"', ...
-        fullfile(matlabroot, 'bin', 'octave.exe'), script_name);
-        
-    [status, cmdout] = system(cmd);
-    t_elapsed = toc(t_start_s);
-    
-    % Parse de testes aprovados (suporta os formatos de todas as suítes)
-    matches = regexp(cmdout, '(\d+)\s+de\s+(\d+)\s+testes\s+APROVADOS', 'tokens');
-    if ~isempty(matches)
-        n_pass = str2double(matches{end}{1});
-        n_tot  = str2double(matches{end}{2});
-    else
-        matches2 = regexp(cmdout, '(\d+)\s+Testes\s+\|\s+(\d+)\s+PASS\s+\|\s+(\d+)\s+FAIL', 'tokens');
-        if ~isempty(matches2)
-            n_tot  = str2double(matches2{end}{1});
-            n_pass = str2double(matches2{end}{2});
+    try
+        res_raw = feval(script_name);
+        if isfield(res_raw, 'passed')
+            n_pass = res_raw.passed;
+            n_tot  = res_raw.total;
+        elseif isfield(res_raw, 'n_pass')
+            n_pass = res_raw.n_pass;
+            n_tot  = res_raw.n_tot;
         else
-            pass_matches = regexp(cmdout, '(->\s*PASS|\[PASS\])', 'match');
-            fail_matches = regexp(cmdout, '(->\s*FAIL|\[FAIL\])', 'match');
-            n_pass = length(pass_matches);
-            n_tot  = n_pass + length(fail_matches);
+            n_pass = 0;
+            n_tot  = 0;
         end
+        status  = 0;
+    catch err
+        fprintf('    [ERRO DE EXECUÇÃO]: %s\n', err.message);
+        n_pass  = 0;
+        n_tot   = 0;
+        status  = 1;
     end
+    t_elapsed = toc(t_start_s);
     
     res.script = script_name;
     res.desc   = script_desc;

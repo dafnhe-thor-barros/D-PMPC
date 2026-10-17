@@ -88,9 +88,20 @@ T_j_fail_open   = zeros(N_ecl, 1);
 T_rad_cur = p.thermal.T_rad_nom;
 A_rad_stuck = p.thermal.A_rad_eff; % 228.4 m² travada!
 eps_sig = p.thermal.epsilon_rad * p.const.sigma_SB;
-C_tot   = p.thermal.C_th_rad + p.thermal.C_th_j;
-inv_C   = 1.0 / C_tot;
+C_j   = p.thermal.C_th_j;     % 4500 J/K
+C_rad = p.thermal.C_th_rad;   % 110000 J/K
+R_th  = p.thermal.R_th_j_rad; % 0.0725 K/W
+inv_Cj       = 1.0 / C_j;
+inv_Crad     = 1.0 / C_rad;
+inv_Cj_Rth   = inv_Cj / R_th;
+inv_Crad_Rth = inv_Crad / R_th;
+T_space4     = p.const.T_space^4;
+sub_steps    = 20; % h_sub = 0.5 s para estabilidade numérica incondicional (tau_j = 0.326 s)
+h_sub        = dt / sub_steps;
+
 P_comp_ecl = p.eps.P_comp_min; % 31 kW
+T_rad_cur = p.thermal.T_rad_nom;
+T_j_cur   = T_rad_cur + P_comp_ecl * R_th;
 
 for k = 1:N_ecl
     t_now = t_test_ecl(k);
@@ -103,22 +114,43 @@ for k = 1:N_ecl
         P_c   = p.eps.P_comp_sun;
     end
     
-    % Integração RK4
-    h_sub = dt / 4.0;
+    tj   = T_j_cur;
     trad = T_rad_cur;
-    for sub = 1:4
-        dtrad1 = (P_c + Q_env - eps_sig * A_rad_stuck * (trad^4 - p.const.T_space^4)) * inv_C;
-        trad2  = trad + 0.5 * h_sub * dtrad1;
-        dtrad2 = (P_c + Q_env - eps_sig * A_rad_stuck * (trad2^4 - p.const.T_space^4)) * inv_C;
-        trad3  = trad + 0.5 * h_sub * dtrad2;
-        dtrad3 = (P_c + Q_env - eps_sig * A_rad_stuck * (trad3^4 - p.const.T_space^4)) * inv_C;
-        trad4  = trad + h_sub * dtrad3;
-        dtrad4 = (P_c + Q_env - eps_sig * A_rad_stuck * (trad4^4 - p.const.T_space^4)) * inv_C;
-        trad   = trad + (h_sub / 6.0) * (dtrad1 + 2.0*dtrad2 + 2.0*dtrad3 + dtrad4);
+    for sub = 1:sub_steps
+        % k1
+        q_cond1 = (tj - trad) * inv_Cj_Rth;
+        dtj1    = P_c * inv_Cj - q_cond1;
+        dtrad1  = (tj - trad) * inv_Crad_Rth + (Q_env - eps_sig * A_rad_stuck * (trad^4 - T_space4)) * inv_Crad;
+        
+        % k2
+        tj2   = tj + 0.5 * h_sub * dtj1;
+        trad2 = trad + 0.5 * h_sub * dtrad1;
+        q_cond2 = (tj2 - trad2) * inv_Cj_Rth;
+        dtj2    = P_c * inv_Cj - q_cond2;
+        dtrad2  = (tj2 - trad2) * inv_Crad_Rth + (Q_env - eps_sig * A_rad_stuck * (trad2^4 - T_space4)) * inv_Crad;
+        
+        % k3
+        tj3   = tj + 0.5 * h_sub * dtj2;
+        trad3 = trad + 0.5 * h_sub * dtrad2;
+        q_cond3 = (tj3 - trad3) * inv_Cj_Rth;
+        dtj3    = P_c * inv_Cj - q_cond3;
+        dtrad3  = (tj3 - trad3) * inv_Crad_Rth + (Q_env - eps_sig * A_rad_stuck * (trad3^4 - T_space4)) * inv_Crad;
+        
+        % k4
+        tj4   = tj + h_sub * dtj3;
+        trad4 = trad + h_sub * dtrad3;
+        q_cond4 = (tj4 - trad4) * inv_Cj_Rth;
+        dtj4    = P_c * inv_Cj - q_cond4;
+        dtrad4  = (tj4 - trad4) * inv_Crad_Rth + (Q_env - eps_sig * A_rad_stuck * (trad4^4 - T_space4)) * inv_Crad;
+        
+        % Atualização RK4
+        tj   = tj + (h_sub / 6.0) * (dtj1 + 2.0*dtj2 + 2.0*dtj3 + dtj4);
+        trad = trad + (h_sub / 6.0) * (dtrad1 + 2.0*dtrad2 + 2.0*dtrad3 + dtrad4);
     end
+    T_j_cur   = tj;
     T_rad_cur = trad;
     T_rad_fail_open(k) = T_rad_cur;
-    T_j_fail_open(k)   = T_rad_cur + P_c * p.thermal.R_th_j_rad;
+    T_j_fail_open(k)   = T_j_cur;
 end
 T_rad_min_fail_open_C = min(T_rad_fail_open) - 273.15;
 fprintf('    Resultado Falha A: T_rad mínima em eclipse atingiu %.2f °C (%.2f K)\n', ...
@@ -139,6 +171,7 @@ fflush(stdout);
 T_rad_fail_closed = zeros(N_ecl, 1);
 T_j_fail_closed   = zeros(N_ecl, 1);
 T_rad_cur = p.thermal.T_rad_nom;
+T_j_cur   = T_rad_cur + P_comp_ecl * R_th;
 A_rad_stuck_small = p.thermal.A_rad_stage; % 58.5 m² travada!
 
 for k = 1:N_ecl
@@ -152,21 +185,43 @@ for k = 1:N_ecl
         P_c   = p.eps.P_comp_sun; % 110 kW conservador
     end
     
-    h_sub = dt / 4.0;
+    tj   = T_j_cur;
     trad = T_rad_cur;
-    for sub = 1:4
-        dtrad1 = (P_c + Q_env - eps_sig * A_rad_stuck_small * (trad^4 - p.const.T_space^4)) * inv_C;
-        trad2  = trad + 0.5 * h_sub * dtrad1;
-        dtrad2 = (P_c + Q_env - eps_sig * A_rad_stuck_small * (trad2^4 - p.const.T_space^4)) * inv_C;
-        trad3  = trad + 0.5 * h_sub * dtrad2;
-        dtrad3 = (P_c + Q_env - eps_sig * A_rad_stuck_small * (trad3^4 - p.const.T_space^4)) * inv_C;
-        trad4  = trad + h_sub * dtrad3;
-        dtrad4 = (P_c + Q_env - eps_sig * A_rad_stuck_small * (trad4^4 - p.const.T_space^4)) * inv_C;
-        trad   = trad + (h_sub / 6.0) * (dtrad1 + 2.0*dtrad2 + 2.0*dtrad3 + dtrad4);
+    for sub = 1:sub_steps
+        % k1
+        q_cond1 = (tj - trad) * inv_Cj_Rth;
+        dtj1    = P_c * inv_Cj - q_cond1;
+        dtrad1  = (tj - trad) * inv_Crad_Rth + (Q_env - eps_sig * A_rad_stuck_small * (trad^4 - T_space4)) * inv_Crad;
+        
+        % k2
+        tj2   = tj + 0.5 * h_sub * dtj1;
+        trad2 = trad + 0.5 * h_sub * dtrad1;
+        q_cond2 = (tj2 - trad2) * inv_Cj_Rth;
+        dtj2    = P_c * inv_Cj - q_cond2;
+        dtrad2  = (tj2 - trad2) * inv_Crad_Rth + (Q_env - eps_sig * A_rad_stuck_small * (trad2^4 - T_space4)) * inv_Crad;
+        
+        % k3
+        tj3   = tj + 0.5 * h_sub * dtj2;
+        trad3 = trad + 0.5 * h_sub * dtrad2;
+        q_cond3 = (tj3 - trad3) * inv_Cj_Rth;
+        dtj3    = P_c * inv_Cj - q_cond3;
+        dtrad3  = (tj3 - trad3) * inv_Crad_Rth + (Q_env - eps_sig * A_rad_stuck_small * (trad3^4 - T_space4)) * inv_Crad;
+        
+        % k4
+        tj4   = tj + h_sub * dtj3;
+        trad4 = trad + h_sub * dtrad3;
+        q_cond4 = (tj4 - trad4) * inv_Cj_Rth;
+        dtj4    = P_c * inv_Cj - q_cond4;
+        dtrad4  = (tj4 - trad4) * inv_Crad_Rth + (Q_env - eps_sig * A_rad_stuck_small * (trad4^4 - T_space4)) * inv_Crad;
+        
+        % Atualização RK4
+        tj   = tj + (h_sub / 6.0) * (dtj1 + 2.0*dtj2 + 2.0*dtj3 + dtj4);
+        trad = trad + (h_sub / 6.0) * (dtrad1 + 2.0*dtrad2 + 2.0*dtrad3 + dtrad4);
     end
+    T_j_cur   = tj;
     T_rad_cur = trad;
     T_rad_fail_closed(k) = T_rad_cur;
-    T_j_fail_closed(k)   = T_rad_cur + P_c * p.thermal.R_th_j_rad;
+    T_j_fail_closed(k)   = T_j_cur;
 end
 T_j_max_fail_closed_C = max(T_j_fail_closed) - 273.15;
 fprintf('    Resultado Falha B: T_j máxima em sol atingiu %.2f °C (Teto de segurança: 85.0 °C)\n', ...

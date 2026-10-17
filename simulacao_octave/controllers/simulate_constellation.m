@@ -79,16 +79,20 @@ W_log(1, :)     = W_curr;
 
 admm_state = [];
 
-% Constantes auxiliares
-C_total   = p.thermal.C_th_rad + p.thermal.C_th_j; % Capacitância térmica total do sistema [J/K]
-R_th      = p.thermal.R_th_j_rad;
-eps_sigma = p.thermal.epsilon_rad * p.const.sigma_SB;
-T_space4  = p.const.T_space^4;
-tau_valve = 30.0; % Constante de tempo das válvulas de bypass (UNRES-04)
-h_sub     = dt / 4.0;
-alpha_v   = 1.0 - exp(-h_sub / tau_valve);
-
-inv_Ctotal = 1.0 / C_total;
+% Constantes auxiliares térmicas do modelo de 2 nós (EQ-17 a EQ-20)
+C_j          = p.thermal.C_th_j;        % [J/K] (4500 J/K)
+C_rad        = p.thermal.C_th_rad;      % [J/K] (110000 J/K)
+R_th         = p.thermal.R_th_j_rad;    % [K/W] (7.25e-5 K/W)
+inv_Cj       = 1.0 / C_j;
+inv_Cj_Rth   = 1.0 / (C_j * R_th);
+inv_Crad     = 1.0 / C_rad;
+inv_Crad_Rth = 1.0 / (C_rad * R_th);
+eps_sigma    = p.thermal.epsilon_rad * p.const.sigma_SB;
+T_space4     = p.const.T_space^4;
+tau_valve    = 30.0; % Constante de tempo das válvulas de bypass (UNRES-04)
+sub_steps    = max(4, ceil(dt / 0.5));
+h_sub        = dt / sub_steps;
+alpha_v      = 1.0 - exp(-h_sub / tau_valve);
 
 gamma_comp = p.workload.gamma_comp;
 alpha_task = p.workload.alpha_task;
@@ -160,13 +164,33 @@ for k = 1:(N_t - 1)
     
     for s = 1:N_sat
         if P_b_unconstrained(s) >= 0.0
-            % Modo Descarga
-            P_b_step(s)       = P_b_unconstrained(s);
-            P_pv_used_step(s) = P_pv_avail_step(s);
-            P_curtail_step(s) = 0.0;
-            dSoC_dt(s) = - (P_b_step(s) / eta_dis) / E_nom_active;
+            % Modo Descarga Solicitado
+            if SoC_curr(s) > 0.001
+                % Bateria com energia: supre a demanda de descarga
+                P_b_step(s)       = P_b_unconstrained(s);
+                P_pv_used_step(s) = P_pv_avail_step(s);
+                P_curtail_step(s) = 0.0;
+                dSoC_dt(s) = - (P_b_step(s) / eta_dis) / E_nom_active;
+            else
+                % Bateria esgotada (SoC <= 0.1%): CORTE FÍSICO DE CARGA / BLACKOUT (NUM-04)
+                if P_bus_net_step(s) >= P_bus
+                    % Há energia solar suficiente para manter pelo menos o barramento
+                    P_b_step(s)       = 0.0;
+                    P_pv_used_step(s) = min(P_pv_avail_step(s), P_load_step(s) / eta_conv);
+                    P_curtail_step(s) = max(0.0, P_pv_avail_step(s) - P_pv_used_step(s));
+                    dSoC_dt(s)        = 0.0;
+                else
+                    % Sombra/eclipse sem bateria: corte total de carga (blackout)
+                    P_b_step(s)       = 0.0;
+                    P_comp_step(s)    = 0.0; % Desligamento de emergência da computação
+                    P_oisl_step(s)    = 0.0; % Desligamento dos transceptores ópticos
+                    P_pv_used_step(s) = 0.0;
+                    P_curtail_step(s) = 0.0;
+                    dSoC_dt(s)        = 0.0;
+                end
+            end
         else
-            % Modo Carga
+            % Modo Carga (Excedente solar disponível)
             P_surplus = -P_b_unconstrained(s);
             if SoC_curr(s) < 1.0
                 P_b_step(s) = -P_surplus;
@@ -183,6 +207,8 @@ for k = 1:(N_t - 1)
         end
     end
     
+    P_comp_log(k, :)    = P_comp_step;
+    P_oisl_log(k, :)    = P_oisl_step;
     P_b_log(k, :)       = P_b_step;
     P_pv_used_log(k, :) = P_pv_used_step;
     P_curtail_log(k, :) = P_curtail_step;
@@ -191,7 +217,7 @@ for k = 1:(N_t - 1)
     SoC_curr = max(0.0, min(1.0, SoC_curr + dSoC_dt * dt));
     SoC_log(k + 1, :) = SoC_curr;
     
-    % --- CONSERVAÇÃO DE TAREFAS NA FILA (EQ-23) ---
+    % --- CONSERVAÇÃO DE TAREFAS NA FILA COM PROCESSAMENTO EFETIVO (EQ-23) ---
     dW_proc = (P_comp_step / gamma_comp) * dt;
     dW_arr  = A_avg * dt;
     dW_mig  = alpha_task * (sum(x_in_step, 2)' - sum(x_out_step, 2)') * dt;
@@ -199,13 +225,15 @@ for k = 1:(N_t - 1)
     W_curr = max(0.0, W_curr - dW_proc + dW_arr + dW_mig);
     W_log(k + 1, :) = W_curr;
     
-    % --- SUBSISTEMA TÉRMICO NÃO-LINEAR COM STEFAN-BOLTZMANN (EQ-17 e EQ-18) ---
+    % --- SUBSISTEMA TÉRMICO DE 2 NÓS ACOPLADOS COM STEFAN-BOLTZMANN (EQ-17 a EQ-20) ---
     if strcmpi(mode, 'dpmpc')
-        % Estagiamento LHP passivo termostático:
-        % O condensador só estagia para A_rad_stage (58.5 m^2) se em eclipse COM carga baixa (P_comp <= 35 kW).
-        % Se a potência computacional for elevada (> 35 kW) ou em luz solar (xi == 1),
-        % as válvulas de bypass abrem para rejeitar o excesso de calor dissipado.
-        is_low_pwr_ecl = (xi_now == 0) & (P_comp_step <= 35.0e3);
+        % Estagiamento LHP preditivo:
+        % Se em eclipse com carga baixa, estagia para A_rad_stage (58.5 m^2).
+        % Mas se o nascer do sol ocorrer nos próximos 30 s (k+3 passos), pré-abre para A_rad_eff
+        % garantindo que as superfícies estejam abertas ao entrar em sol sob alta carga.
+        k_look = min(k + 3, N_t);
+        sunrise_near = any(eclipse_data.xi(k:k_look, :) == 1, 1);
+        is_low_pwr_ecl = (xi_now == 0) & (P_comp_step <= 35.0e3) & (~sunrise_near);
         A_target_step = p.thermal.A_rad_stage .* is_low_pwr_ecl + ...
             p.thermal.A_rad_eff .* (~is_low_pwr_ecl);
     else
@@ -215,31 +243,48 @@ for k = 1:(N_t - 1)
     Q_env_step = p.thermal.Q_env_ecl + ...
         (p.thermal.Q_env_sun - p.thermal.Q_env_ecl) .* (xi_now == 1);
     
+    tj   = T_j_curr;
     trad = T_rad_curr;
     ar   = A_rad_curr;
     
-    % Integração RK4 do radiador (capacitância combinada C_total)
-    for sub = 1:4
+    % Integração RK4 do modelo térmico completo de 2 nós acoplados (Silício + Radiador LHP)
+    for sub = 1:sub_steps
         ar = ar + (A_target_step - ar) * alpha_v;
         
-        dtrad1 = (P_comp_step + Q_env_step - eps_sigma .* ar .* (trad.^4 - T_space4)) * inv_Ctotal;
+        % k1
+        q_cond1 = (tj - trad) * inv_Cj_Rth;
+        dtj1    = P_comp_step * inv_Cj - q_cond1;
+        dtrad1  = (tj - trad) * inv_Crad_Rth + (Q_env_step - eps_sigma .* ar .* (trad.^4 - T_space4)) * inv_Crad;
         
-        trad2  = trad + 0.5 * h_sub * dtrad1;
-        dtrad2 = (P_comp_step + Q_env_step - eps_sigma .* ar .* (trad2.^4 - T_space4)) * inv_Ctotal;
+        % k2
+        tj2   = tj + 0.5 * h_sub * dtj1;
+        trad2 = trad + 0.5 * h_sub * dtrad1;
+        q_cond2 = (tj2 - trad2) * inv_Cj_Rth;
+        dtj2    = P_comp_step * inv_Cj - q_cond2;
+        dtrad2  = (tj2 - trad2) * inv_Crad_Rth + (Q_env_step - eps_sigma .* ar .* (trad2.^4 - T_space4)) * inv_Crad;
         
-        trad3  = trad + 0.5 * h_sub * dtrad2;
-        dtrad3 = (P_comp_step + Q_env_step - eps_sigma .* ar .* (trad3.^4 - T_space4)) * inv_Ctotal;
+        % k3
+        tj3   = tj + 0.5 * h_sub * dtj2;
+        trad3 = trad + 0.5 * h_sub * dtrad2;
+        q_cond3 = (tj3 - trad3) * inv_Cj_Rth;
+        dtj3    = P_comp_step * inv_Cj - q_cond3;
+        dtrad3  = (tj3 - trad3) * inv_Crad_Rth + (Q_env_step - eps_sigma .* ar .* (trad3.^4 - T_space4)) * inv_Crad;
         
-        trad4  = trad + h_sub * dtrad3;
-        dtrad4 = (P_comp_step + Q_env_step - eps_sigma .* ar .* (trad4.^4 - T_space4)) * inv_Ctotal;
+        % k4
+        tj4   = tj + h_sub * dtj3;
+        trad4 = trad + h_sub * dtrad3;
+        q_cond4 = (tj4 - trad4) * inv_Cj_Rth;
+        dtj4    = P_comp_step * inv_Cj - q_cond4;
+        dtrad4  = (tj4 - trad4) * inv_Crad_Rth + (Q_env_step - eps_sigma .* ar .* (trad4.^4 - T_space4)) * inv_Crad;
         
-        trad   = trad + (h_sub / 6.0) * (dtrad1 + 2.0*dtrad2 + 2.0*dtrad3 + dtrad4);
+        % Atualização RK4
+        tj   = tj + (h_sub / 6.0) * (dtj1 + 2.0*dtj2 + 2.0*dtj3 + dtj4);
+        trad = trad + (h_sub / 6.0) * (dtrad1 + 2.0*dtrad2 + 2.0*dtrad3 + dtrad4);
     end
     
+    T_j_curr   = tj;
     T_rad_curr = trad;
     A_rad_curr = ar;
-    % Quasi-equilíbrio térmico da junção (LHP de acoplamento rápido tau = 0.326 s)
-    T_j_curr   = T_rad_curr + P_comp_step * R_th;
     
     T_j_log(k + 1, :)   = T_j_curr;
     T_rad_log(k + 1, :) = T_rad_curr;
@@ -312,13 +357,22 @@ total_solar_avail = sum(sum(solar_data.P_pv_avail)) * dt;
 total_solar_used  = sum(sum(P_pv_used_log)) * dt;
 sim_results.eta_harv = (total_solar_used / total_solar_avail) * 100.0;
 
-% Decomposição de Latência (EQ-33)
+% Decomposição Dinâmica de Latência (EQ-33 e NUM-06)
 % T_lat = T_queue + T_prop + T_tx + T_exec
 mean_queue_flops = mean(W_log(:));
-T_queue_ms = (mean_queue_flops / (mean(P_comp_log(:)) / gamma_comp)) * 1000.0;
-T_prop_ms  = oisl_data.tau_prop_2hop * 1000.0; % 22.40 ms
-T_tx_ms    = 15.60; % ms
-T_exec_ms  = 135.0; % ms
+mean_p_comp      = max(1.0, mean(P_comp_log(:)));
+mu_proc          = mean_p_comp / gamma_comp; % Taxa efetiva de processamento [FLOPs/s]
+
+% Tempo de espera em fila emergente do estado da fila e capacidade de serviço
+T_queue_ms       = (mean_queue_flops / mu_proc) * 1000.0;
+T_prop_ms        = oisl_data.tau_prop_2hop * 1000.0; % Retardo de propagação em 2 saltos [ms] (22.40 ms)
+
+% Bloco neural nominal de tensores (500 Mbits com overhead FEC/CCSDS a 40 Gbps)
+T_tx_ms          = 15.60; % ms
+
+% Tempo de execução computacional do bloco neural, modulado dinamicamente pela potência
+T_exec_ms        = 135.0 * (p.eps.P_comp_nom / mean_p_comp); % ms
+
 sim_results.latency.T_queue = T_queue_ms;
 sim_results.latency.T_prop  = T_prop_ms;
 sim_results.latency.T_tx    = T_tx_ms;

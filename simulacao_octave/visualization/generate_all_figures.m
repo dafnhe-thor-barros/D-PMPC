@@ -12,7 +12,14 @@ function generate_all_figures()
 %
 % Formatação estrita com padrões de publicação do IEEE Transactions (300 DPI, fontes legíveis).
 
-graphics_toolkit('qt');
+toolkits = available_graphics_toolkits();
+if any(strcmp(toolkits, 'qt'))
+    graphics_toolkit('qt');
+elseif any(strcmp(toolkits, 'fltk'))
+    graphics_toolkit('fltk');
+else
+    graphics_toolkit('gnuplot');
+end
 
 % Diretórios de saída
 base_dir = fileparts(mfilename('fullpath'));
@@ -429,8 +436,10 @@ text(pareto_data.ref_selected.eta_harv + 0.15, pareto_data.ref_selected.life_yr 
     'FontSize', 9.5, 'FontWeight', 'bold', 'Color', [0.08, 0.45, 0.15]);
 
 grid on;
-xlim([87.0, 92.0]);
-ylim([2.0, 12.0]);
+all_eta = [pareto_data.eta_harv_pct(:); pareto_data.ref_baseline.eta_harv; pareto_data.ref_greedy.eta_harv; pareto_data.ref_selected.eta_harv];
+all_life = [pareto_data.battery_life_yr(:); pareto_data.ref_baseline.life_yr; pareto_data.ref_greedy.life_yr; pareto_data.ref_selected.life_yr];
+xlim([max(70.0, floor(min(all_eta)) - 2.0), min(100.0, ceil(max(all_eta)) + 2.0)]);
+ylim([max(0.0, floor(min(all_life)) - 1.0), ceil(max(all_life)) + 1.5]);
 xlabel('Constellation Solar Energy Harvesting Efficiency \eta_{harv} (%)', ...
     'FontWeight', 'bold', 'FontSize', 11.0);
 ylabel('Battery Operational Lifetime (years)', ...

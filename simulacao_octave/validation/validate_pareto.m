@@ -1,3 +1,4 @@
+function results = validate_pareto()
 % VALIDATE_PARETO - Suite de Testes e Validação Científica da Etapa G
 % Validação Formal da Otimização Multiobjetivo e Fronteira de Pareto Física.
 %
@@ -11,9 +12,6 @@
 %   7. Fechamento físico do ponto selecionado no artigo (w_B = 0.85, Vida ~ 11.8 anos, DoD ~ 18%)
 %   8. Limites térmicos de segurança do silício ao longo da fronteira
 %   9. Rastreabilidade auditável (ausência de curvas analíticas empíricas ad-hoc)
-
-clear; clc;
-addpath('config', 'models', 'controllers', 'optimization');
 
 fprintf('========================================================================================\n');
 fprintf('   SUITE DE VALIDAÇÃO CIENTÍFICA - ETAPA G: FRONTEIRA DE PARETO FÍSICA                 \n');
@@ -169,5 +167,13 @@ if n_pass == length(tests)
     fprintf('STATUS: ETAPA G CONCLUÍDA E VALIDADA COM DISTINÇÃO CIENTÍFICA.\n');
 else
     fprintf('STATUS: REVISÃO NECESSÁRIA EM TESTES REPROVADOS.\n');
+end
+
+results = struct();
+results.n_pass = n_pass;
+results.n_tot  = length(tests);
+results.tests  = tests;
+results.pass   = (n_pass == length(tests));
+
 end
 
